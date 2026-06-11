@@ -24,6 +24,16 @@ STATUS_MAP = {
 }
 
 
+FILE_KIND_MAP = {
+    "modified": "file_modified",
+    "added": "file_added",
+    "deleted": "file_deleted",
+    "renamed": "file_rename",
+    "copied": "file_copy",
+    "unknown": "file_unknown",
+}
+
+
 HUNK_RE = re.compile(
     r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
     r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@.*$"
@@ -188,14 +198,47 @@ def parse_file_marker(line):
     return marker
 
 
-def make_file_record(path, old_path, status):
+def make_file_record(item_id, path, old_path, status):
     return {
+        "item_id": item_id,
+        "kind": FILE_KIND_MAP.get(status, "file_unknown"),
         "path": path,
         "old_path": old_path,
         "status": status,
         "language": detect_language(path or old_path),
         "hunks": [],
     }
+
+
+def describe_file_event(file_record):
+    status = file_record["status"]
+    path = file_record["path"]
+    old_path = file_record["old_path"]
+
+    if status == "renamed":
+        return f"{file_record['item_id']}: renamed {old_path} -> {path}"
+    if status == "copied":
+        return f"{file_record['item_id']}: copied {old_path} -> {path}"
+    if status == "added":
+        return f"{file_record['item_id']}: added {path}"
+    if status == "deleted":
+        return f"{file_record['item_id']}: deleted {old_path or path}"
+    if status == "modified":
+        return f"{file_record['item_id']}: modified {path}"
+    return f"{file_record['item_id']}: unknown {old_path or path}"
+
+
+def build_file_events(files):
+    return [
+        {
+            "item_id": file_record["item_id"],
+            "kind": file_record["kind"],
+            "old_path": file_record["old_path"],
+            "path": file_record["path"],
+            "status": file_record["status"],
+        }
+        for file_record in files
+    ]
 
 
 def parse_hunk_header(header):
@@ -216,10 +259,12 @@ def parse_unified_diff(diff_text, file_statuses):
     files_by_path = {}
     lookup = {}
 
-    for status_info in file_statuses:
+    for index, status_info in enumerate(file_statuses, start=1):
         path = status_info["path"]
         old_path = status_info["old_path"]
-        record = make_file_record(path, old_path, status_info["status"])
+        record = make_file_record(
+            f"F{index:06d}", path, old_path, status_info["status"]
+        )
         files_by_path[path] = record
         lookup[path] = record
         if old_path:
@@ -237,15 +282,21 @@ def parse_unified_diff(diff_text, file_statuses):
     line_index_in_hunk = 0
     hunk_counter = 0
     change_counter = 0
+    next_file_index = len(files) + 1
 
     def ensure_file(path, old_path, status="unknown"):
+        nonlocal next_file_index
+
         selected_path = path or old_path
         if selected_path in lookup:
             return lookup[selected_path]
         if old_path in lookup:
             return lookup[old_path]
 
-        record = make_file_record(selected_path, old_path, status)
+        record = make_file_record(
+            f"F{next_file_index:06d}", selected_path, old_path, status
+        )
+        next_file_index += 1
         files_by_path[selected_path] = record
         lookup[selected_path] = record
         if old_path:
@@ -365,18 +416,32 @@ def parse_unified_diff(diff_text, file_statuses):
 
     additions = sum(1 for change in changes if change["op"] == "+")
     deletions = sum(1 for change in changes if change["op"] == "-")
+    file_events = build_file_events(files)
+    file_event_summaries = [describe_file_event(file_record) for file_record in files]
     stats = {
         "files_changed": len(files),
+        "file_events": len(files),
         "hunks": hunk_counter,
         "changes": len(changes),
         "additions": additions,
         "deletions": deletions,
     }
 
-    return files, changes, stats, warnings
+    return files, file_events, file_event_summaries, changes, stats, warnings
 
 
-def build_input_json(repo, target_commit, parent_commit, metadata, files, changes, stats, warnings):
+def build_input_json(
+    repo,
+    target_commit,
+    parent_commit,
+    metadata,
+    files,
+    file_events,
+    file_event_summaries,
+    changes,
+    stats,
+    warnings,
+):
     return {
         "schema_version": 1,
         "repo": str(pathlib.Path(repo).resolve()),
@@ -384,6 +449,8 @@ def build_input_json(repo, target_commit, parent_commit, metadata, files, change
         "parent_commit": parent_commit,
         "commit": metadata,
         "files": files,
+        "file_events": file_events,
+        "file_event_summaries": file_event_summaries,
         "changes": changes,
         "stats": stats,
         "warnings": warnings,
@@ -438,13 +505,22 @@ def main(argv=None):
         metadata = get_commit_metadata(repo, target_commit)
         file_statuses = get_name_status(repo, parent_commit, target_commit)
         diff_text = get_diff(repo, parent_commit, target_commit)
-        files, changes, stats, warnings = parse_unified_diff(diff_text, file_statuses)
+        (
+            files,
+            file_events,
+            file_event_summaries,
+            changes,
+            stats,
+            warnings,
+        ) = parse_unified_diff(diff_text, file_statuses)
         input_data = build_input_json(
             repo,
             target_commit,
             parent_commit,
             metadata,
             files,
+            file_events,
+            file_event_summaries,
             changes,
             stats,
             warnings,
@@ -463,6 +539,7 @@ def main(argv=None):
             "parent_commit": parent_commit,
             "changes": stats["changes"],
             "hunks": stats["hunks"],
+            "file_events": stats["file_events"],
             "files_changed": stats["files_changed"],
         }
     )
