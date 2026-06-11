@@ -8,7 +8,7 @@ description: Run the local git decomposition prototype. Use this skill when the 
 When the user invokes this skill, run the local Python entry point from the project root:
 
 ```bash
-python3 scripts/main.py
+python3 main.py
 ```
 
 After running it, show the command output to the user.
