@@ -380,6 +380,7 @@ def parse_unified_diff(diff_text, file_statuses):
             current_hunk = {
                 "hunk_id": f"H{hunk_counter:06d}",
                 "header": line,
+                "hunk_text": [],
                 "old_start": hunk_info["old_start"],
                 "old_count": hunk_info["old_count"],
                 "new_start": hunk_info["new_start"],
@@ -394,6 +395,8 @@ def parse_unified_diff(diff_text, file_statuses):
 
         if current_hunk is None:
             continue
+
+        current_hunk["hunk_text"].append(line)
 
         if line.startswith("\\ No newline at end of file"):
             continue
