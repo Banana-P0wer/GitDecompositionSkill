@@ -198,10 +198,9 @@ def parse_file_marker(line):
     return marker
 
 
-def make_file_record(item_id, path, old_path, status):
+def make_file_record(event_id, path, old_path, status):
     return {
-        "item_id": item_id,
-        "kind": FILE_KIND_MAP.get(status, "file_unknown"),
+        "event_id": event_id,
         "path": path,
         "old_path": old_path,
         "status": status,
@@ -216,29 +215,56 @@ def describe_file_event(file_record):
     old_path = file_record["old_path"]
 
     if status == "renamed":
-        return f"{file_record['item_id']}: renamed {old_path} -> {path}"
+        return f"{file_record['event_id']}: renamed {old_path} -> {path}"
     if status == "copied":
-        return f"{file_record['item_id']}: copied {old_path} -> {path}"
+        return f"{file_record['event_id']}: copied {old_path} -> {path}"
     if status == "added":
-        return f"{file_record['item_id']}: added {path}"
+        return f"{file_record['event_id']}: added {path}"
     if status == "deleted":
-        return f"{file_record['item_id']}: deleted {old_path or path}"
+        return f"{file_record['event_id']}: deleted {old_path or path}"
     if status == "modified":
-        return f"{file_record['item_id']}: modified {path}"
-    return f"{file_record['item_id']}: unknown {old_path or path}"
+        return f"{file_record['event_id']}: modified {path}"
+    return f"{file_record['event_id']}: unknown {old_path or path}"
 
 
 def build_file_events(files):
     return [
         {
-            "item_id": file_record["item_id"],
-            "kind": file_record["kind"],
+            "event_id": file_record["event_id"],
+            "status": file_record["status"],
             "old_path": file_record["old_path"],
             "path": file_record["path"],
-            "status": file_record["status"],
+            "language": file_record["language"],
         }
         for file_record in files
     ]
+
+
+def build_files_output(files):
+    return [
+        {
+            "path": file_record["path"],
+            "old_path": file_record["old_path"],
+            "status": file_record["status"],
+            "language": file_record["language"],
+            "hunks": file_record["hunks"],
+        }
+        for file_record in files
+    ]
+
+
+def build_analysis_items(changes, file_events):
+    analysis_items = [
+        {"id": change["change_id"], "kind": "line_change"} for change in changes
+    ]
+    analysis_items.extend(
+        {
+            "id": file_event["event_id"],
+            "kind": FILE_KIND_MAP.get(file_event["status"], "file_unknown"),
+        }
+        for file_event in file_events
+    )
+    return analysis_items
 
 
 def parse_hunk_header(header):
@@ -416,18 +442,29 @@ def parse_unified_diff(diff_text, file_statuses):
 
     additions = sum(1 for change in changes if change["op"] == "+")
     deletions = sum(1 for change in changes if change["op"] == "-")
+    files_output = build_files_output(files)
     file_events = build_file_events(files)
     file_event_summaries = [describe_file_event(file_record) for file_record in files]
+    analysis_items = build_analysis_items(changes, file_events)
     stats = {
         "files_changed": len(files),
         "file_events": len(files),
         "hunks": hunk_counter,
         "changes": len(changes),
+        "analysis_items": len(analysis_items),
         "additions": additions,
         "deletions": deletions,
     }
 
-    return files, file_events, file_event_summaries, changes, stats, warnings
+    return (
+        files_output,
+        file_events,
+        file_event_summaries,
+        analysis_items,
+        changes,
+        stats,
+        warnings,
+    )
 
 
 def build_input_json(
@@ -438,6 +475,7 @@ def build_input_json(
     files,
     file_events,
     file_event_summaries,
+    analysis_items,
     changes,
     stats,
     warnings,
@@ -451,6 +489,7 @@ def build_input_json(
         "files": files,
         "file_events": file_events,
         "file_event_summaries": file_event_summaries,
+        "analysis_items": analysis_items,
         "changes": changes,
         "stats": stats,
         "warnings": warnings,
@@ -509,6 +548,7 @@ def main(argv=None):
             files,
             file_events,
             file_event_summaries,
+            analysis_items,
             changes,
             stats,
             warnings,
@@ -521,6 +561,7 @@ def main(argv=None):
             files,
             file_events,
             file_event_summaries,
+            analysis_items,
             changes,
             stats,
             warnings,
@@ -540,6 +581,7 @@ def main(argv=None):
             "changes": stats["changes"],
             "hunks": stats["hunks"],
             "file_events": stats["file_events"],
+            "analysis_items": stats["analysis_items"],
             "files_changed": stats["files_changed"],
         }
     )
