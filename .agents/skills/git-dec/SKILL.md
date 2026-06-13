@@ -1,6 +1,6 @@
 ---
 name: git-dec
-description: Run the local git decomposition prep command for a specific repository and commit. Use when the user invokes $git-dec, including shorthand forms such as `$git-dec 3`, `$git-dec <hash>`, or `$git-dec "commit subject"`, asks to prepare or collect git commit analysis inputs, asks to analyze a specific commit/hash/HEAD/HEAD~1 with git-dec, or asks for artifacts such as input.json and diff.patch for a repository commit.
+description: Run the local git decomposition prep and explicit-agent stages for a specific repository and commit. Use when the user invokes $git-dec, including shorthand forms such as `$git-dec 3`, `$git-dec <hash>`, or `$git-dec "commit subject"`, asks to prepare or collect git commit analysis inputs, asks to analyze a specific commit/hash/HEAD/HEAD~1 with git-dec, or asks for artifacts such as input.json, diff.patch, and agents/explicit.json for a repository commit.
 ---
 
 # Git decomposition prototype
@@ -17,6 +17,13 @@ python3 main.py --repo <repo> --commit <commit>
 <repo>/.git-dec/<resolved_commit_sha>/
   input.json
   diff.patch
+```
+
+The full skill workflow then creates:
+
+```text
+<repo>/.git-dec/<resolved_commit_sha>/
+  agents/explicit.json
 ```
 
 ## Arguments
@@ -67,9 +74,33 @@ Do not guess a commit when subject lookup is ambiguous.
 3. Run the command from the project root that contains `main.py`.
 4. Show the command you ran.
 5. Show the JSON stdout from the command.
-6. Briefly report the created `input.json` and `diff.patch` paths.
+6. Use the command stdout to find `<out_dir>/input.json`.
+7. Run the Explicit Agent stage.
+8. Show validator stdout.
+9. Briefly report the created `input.json`, `diff.patch`, and `agents/explicit.json` paths.
 
-This prototype prepares commit data for later agents. It does not yet perform semantic analysis, patch generation, or report generation.
+## Explicit Agent stage
 
-Do not modify files.
+After `input.json` is created, run the Explicit Agent stage.
+
+1. Read `<out_dir>/input.json`.
+2. Use `references/explicit_agent.md` and `references/explicit_agent_contract.md`.
+3. Create `<out_dir>/agents/explicit.json`.
+4. The JSON must follow the explicit.json contract.
+5. Run:
+
+```bash
+python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
+```
+
+6. If validation fails, fix `explicit.json` once and validate again.
+7. Do not continue if validation still fails.
+
+The explicit agent must group `analysis_items`, not only line-level `changes`.
+Use `item_ids` in explicit groups. These ids may include both `C...` line changes and `F...` file events.
+
+This prototype prepares commit data and explicit technical grouping for later agents. It does not yet perform patch generation or report generation.
+
+Do not modify source files in the analyzed repository.
+Do not write patch files.
 Do not create commits.
