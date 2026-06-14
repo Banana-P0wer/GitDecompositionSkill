@@ -68,6 +68,8 @@ The output directory should contain:
 ```text
 input.json
 diff.patch
+agents/explicit.json
+agents/implicit.json
 ```
 
 ## Explicit Agent stage
@@ -129,9 +131,68 @@ If validation fails:
 
 Do not continue with an invalid explicit.json.
 
+## Implicit Agent stage
+
+After explicit.json validates successfully, spawn the Codex custom subagent named:
+
+implicit-agent
+
+Ask implicit-agent to:
+
+1. Read <out_dir>/input.json.
+2. Read references/implicit_agent.md.
+3. Read references/implicit_agent_contract.md.
+4. Group the commit analysis_items by implicit semantic and contextual relationships.
+5. Write the result to <out_dir>/agents/implicit.json.
+6. Use item_ids, not change_ids, in groups.
+7. Include every analysis_items[].id exactly once.
+8. Return JSON only.
+9. Do not modify the analyzed repository.
+
+The output file must be:
+```text
+<out_dir>/agents/implicit.json
+```
+
+The file must follow this shape:
+```json
+{
+  "agent": "implicit-agent",
+  "schema_version": 1,
+  "groups": [
+    {
+      "group_id": "I1",
+      "item_ids": ["C000001", "F000001"],
+      "summary": "Short summary of this implicit group",
+      "reason": "Why these items are semantically or contextually connected"
+    }
+  ],
+  "ungrouped_item_ids": [],
+  "warnings": []
+}
+```
+
+If an item has no implicit semantic or contextual relationship to another item, implicit-agent should put it in ungrouped_item_ids.
+
+## Validate implicit-agent output
+
+After implicit-agent writes implicit.json, run:
+```bash
+python3 validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
+```
+
+If validation fails:
+
+1. Read the validator error.
+2. Ask the same implicit-agent subagent to fix <out_dir>/agents/implicit.json once.
+3. Run validation again.
+4. If validation still fails, stop and report the error.
+
+Do not continue with an invalid implicit.json.
+
 ## Optional human-readable view
 
-If validation succeeds and the user wants to inspect the grouping, run either:
+If explicit validation succeeds and the user wants to inspect explicit grouping, run either:
 ```bash
 python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --pretty
 ```
@@ -143,6 +204,18 @@ python3 show_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agent
 
 Use the human-readable output to briefly summarize the explicit-agent result.
 
+If implicit validation succeeds and the user wants to inspect implicit grouping, run either:
+```bash
+python3 validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json --pretty
+```
+
+or:
+```bash
+python3 show_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
+```
+
+Use the human-readable output to briefly summarize the implicit-agent result.
+
 ## Final response
 
 In the final response to the user, report:
@@ -152,10 +225,13 @@ In the final response to the user, report:
 * created input.json path;
 * created diff.patch path;
 * created agents/explicit.json path;
-* validation status;
+* created agents/implicit.json path;
+* explicit validation status;
+* implicit validation status;
 * number of explicit groups;
+* number of implicit groups;
 * number of covered analysis items.
 
 Keep the response short.
 
-Mention clearly that this prototype currently runs only the prepare stage and the explicit-agent stage.
+Mention clearly that this prototype currently runs the prepare, explicit-agent, and implicit-agent stages. It does not yet run the reviewer, report, or patch stages.
