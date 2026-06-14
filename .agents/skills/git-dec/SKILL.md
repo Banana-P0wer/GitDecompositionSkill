@@ -77,7 +77,8 @@ Do not guess a commit when subject lookup is ambiguous.
 6. Use the command stdout to find `<out_dir>/input.json`.
 7. Run the Explicit Agent stage.
 8. Show validator stdout.
-9. Briefly report the created `input.json`, `diff.patch`, and `agents/explicit.json` paths.
+9. If the user wants to inspect the grouping, show the pretty explicit-agent report.
+10. Briefly report the created `input.json`, `diff.patch`, and `agents/explicit.json` paths.
 
 ## Explicit Agent stage
 
@@ -95,6 +96,18 @@ python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/a
 
 6. If validation fails, fix `explicit.json` once and validate again.
 7. Do not continue if validation still fails.
+
+To validate and print a human-readable report, run:
+
+```bash
+python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --pretty
+```
+
+To only show the report after validation, run:
+
+```bash
+python3 show_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
+```
 
 The explicit agent must group `analysis_items`, not only line-level `changes`.
 Use `item_ids` in explicit groups. These ids may include both `C...` line changes and `F...` file events.

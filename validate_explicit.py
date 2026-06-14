@@ -152,10 +152,118 @@ def validate_explicit(input_data, explicit_data):
     }
 
 
+def trim_text(text, limit=160):
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def format_file_event(event):
+    event_id = event.get("event_id", "<unknown>")
+    status = event.get("status", "unknown")
+    old_path = event.get("old_path")
+    path = event.get("path")
+
+    if status in ("renamed", "copied"):
+        return f"{event_id} {status} {old_path} -> {path}"
+    if status == "deleted":
+        return f"{event_id} deleted {old_path or path}"
+    if status == "added":
+        return f"{event_id} added {path}"
+    if status == "modified":
+        return f"{event_id} modified {path}"
+    return f"{event_id} {status} {old_path or path}"
+
+
+def format_line_change(change):
+    change_id = change.get("change_id", "<unknown>")
+    file_path = change.get("file") or change.get("old_file") or "<unknown>"
+    op = change.get("op", "?")
+    line = change.get("new_line") if op == "+" else change.get("old_line")
+    line_label = f":{line}" if line is not None else ""
+    text = trim_text(change.get("text", ""))
+    if op == "+":
+        action = "added"
+    elif op == "-":
+        action = "removed"
+    else:
+        action = "changed"
+    return f"{change_id} {file_path}{line_label} {action}: {text}"
+
+
+def build_item_index(input_data):
+    item_index = {}
+
+    for event in input_data.get("file_events", []):
+        if isinstance(event, dict):
+            event_id = event.get("event_id")
+            if isinstance(event_id, str):
+                item_index[event_id] = format_file_event(event)
+
+    for change in input_data.get("changes", []):
+        if isinstance(change, dict):
+            change_id = change.get("change_id")
+            if isinstance(change_id, str):
+                item_index[change_id] = format_line_change(change)
+
+    for item in input_data.get("analysis_items", []):
+        if isinstance(item, dict):
+            item_id = item.get("id")
+            kind = item.get("kind", "unknown")
+            if isinstance(item_id, str) and item_id not in item_index:
+                item_index[item_id] = f"{item_id} {kind}"
+
+    return item_index
+
+
+def render_pretty_report(input_data, explicit_data, stats, explicit_path):
+    item_index = build_item_index(input_data)
+    lines = [
+        "Explicit Agent Result",
+        f"Status: ok",
+        f"Groups: {stats['groups']}",
+        f"Items: {stats['grouped_items']}/{stats['expected_items']}",
+        f"File: {explicit_path}",
+    ]
+
+    groups = explicit_data.get("groups", [])
+    for group in groups:
+        lines.append("")
+        lines.append(f"Group {group['group_id']}: {group['summary']}")
+        lines.append("Items:")
+        for item_id in group["item_ids"]:
+            lines.append(f"- {item_index.get(item_id, item_id)}")
+        lines.append("")
+        lines.append("Reason:")
+        lines.append(group["reason"])
+
+    ungrouped_item_ids = explicit_data.get("ungrouped_item_ids", [])
+    if ungrouped_item_ids:
+        lines.append("")
+        lines.append("Ungrouped items:")
+        for item_id in ungrouped_item_ids:
+            lines.append(f"- {item_index.get(item_id, item_id)}")
+
+    warnings = explicit_data.get("warnings", [])
+    if warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"- {warning}")
+
+    return "\n".join(lines)
+
+
 def parse_args(argv):
     parser = JsonArgumentParser(description="Validate explicit-agent JSON output.")
     parser.add_argument("--input", required=True, help="Path to input.json")
     parser.add_argument("--explicit", required=True, help="Path to explicit.json")
+    parser.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Print a human-readable explicit-agent report after validation",
+    )
     return parser.parse_args(argv)
 
 
@@ -171,15 +279,18 @@ def main(argv=None):
         print_json({"status": "error", "message": str(exc)})
         return 1
 
-    print_json(
-        {
-            "status": "ok",
-            "expected_items": stats["expected_items"],
-            "grouped_items": stats["grouped_items"],
-            "groups": stats["groups"],
-            "explicit_path": str(explicit_path),
-        }
-    )
+    if args.pretty:
+        print(render_pretty_report(input_data, explicit_data, stats, explicit_path))
+    else:
+        print_json(
+            {
+                "status": "ok",
+                "expected_items": stats["expected_items"],
+                "grouped_items": stats["grouped_items"],
+                "groups": stats["groups"],
+                "explicit_path": str(explicit_path),
+            }
+        )
     return 0
 
 
