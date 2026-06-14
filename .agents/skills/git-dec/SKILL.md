@@ -70,6 +70,7 @@ input.json
 diff.patch
 agents/explicit.json
 agents/implicit.json
+agents/reviewer.json
 ```
 
 ## Explicit Agent stage
@@ -190,6 +191,82 @@ If validation fails:
 
 Do not continue with an invalid implicit.json.
 
+## Reviewer Agent stage
+
+After implicit.json validates successfully, spawn the Codex custom subagent named:
+
+reviewer-agent
+
+Ask reviewer-agent to:
+
+1. Read <out_dir>/input.json.
+2. Read <out_dir>/agents/explicit.json.
+3. Read <out_dir>/agents/implicit.json.
+4. Read references/reviewer_agent.md.
+5. Read references/reviewer_agent_contract.md.
+6. Compare explicit-agent and implicit-agent results.
+7. Choose the final commit decomposition groups.
+8. Write the result to <out_dir>/agents/reviewer.json.
+9. Use item_ids, not change_ids, in groups.
+10. Include every analysis_items[].id exactly once in groups[].item_ids.
+11. Return JSON only.
+12. Do not modify the analyzed repository.
+
+The output file must be:
+```text
+<out_dir>/agents/reviewer.json
+```
+
+The file must follow this shape:
+```json
+{
+  "agent": "reviewer-agent",
+  "schema_version": 1,
+  "is_mixed": true,
+  "confidence": 0.82,
+  "groups": [
+    {
+      "group_id": "R1",
+      "item_ids": ["C000001", "F000001"],
+      "summary": "Final group summary",
+      "why": "Why these items belong together in the final decomposition",
+      "evidence": {
+        "explicit": "What explicit-agent suggested for these items",
+        "implicit": "What implicit-agent suggested for these items"
+      }
+    }
+  ],
+  "disagreements_resolved": [
+    {
+      "item_ids": ["C000001", "F000001"],
+      "explicit_position": "How explicit-agent grouped or separated these items",
+      "implicit_position": "How implicit-agent grouped or separated these items",
+      "decision": "Final reviewer decision",
+      "reason": "Why reviewer chose this decision"
+    }
+  ],
+  "warnings": []
+}
+```
+
+reviewer-agent must not use ungrouped_item_ids.
+
+## Validate reviewer-agent output
+
+After reviewer-agent writes reviewer.json, run:
+```bash
+python3 validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
+```
+
+If validation fails:
+
+1. Read the validator error.
+2. Ask the same reviewer-agent subagent to fix <out_dir>/agents/reviewer.json once.
+3. Run validation again.
+4. If validation still fails, stop and report the error.
+
+Do not continue with an invalid reviewer.json.
+
 ## Optional human-readable view
 
 If explicit validation succeeds and the user wants to inspect explicit grouping, run either:
@@ -216,6 +293,18 @@ python3 show_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agent
 
 Use the human-readable output to briefly summarize the implicit-agent result.
 
+If reviewer validation succeeds and the user wants to inspect reviewer grouping, run either:
+```bash
+python3 validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json --pretty
+```
+
+or:
+```bash
+python3 show_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
+```
+
+Use the human-readable output to briefly summarize the reviewer-agent result.
+
 ## Final response
 
 In the final response to the user, report:
@@ -226,12 +315,17 @@ In the final response to the user, report:
 * created diff.patch path;
 * created agents/explicit.json path;
 * created agents/implicit.json path;
+* created agents/reviewer.json path;
 * explicit validation status;
 * implicit validation status;
+* reviewer validation status;
 * number of explicit groups;
 * number of implicit groups;
-* number of covered analysis items.
+* number of reviewer final groups;
+* number of covered analysis items;
+* is_mixed;
+* confidence.
 
 Keep the response short.
 
-Mention clearly that this prototype currently runs the prepare, explicit-agent, and implicit-agent stages. It does not yet run the reviewer, report, or patch stages.
+Mention clearly that this prototype currently runs the prepare, explicit-agent, implicit-agent, and reviewer-agent stages. It does not yet generate report.md or patch files.
