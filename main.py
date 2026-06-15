@@ -27,7 +27,7 @@ def default_out_dir(repo, commit_hash):
 
 
 def run_prep(repo, commit, out_dir):
-    prep_path = pathlib.Path(__file__).resolve().with_name("prep.py")
+    prep_path = pathlib.Path(__file__).resolve().parent / "src" / "prep.py"
     command = [
         sys.executable,
         str(prep_path),

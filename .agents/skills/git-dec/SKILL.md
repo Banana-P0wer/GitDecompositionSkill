@@ -128,7 +128,7 @@ If an item has no explicit technical connection to another item, explicit-agent 
 
 After explicit-agent writes explicit.json, run:
 ```bash
-python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
+python3 src/validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
 ```
 
 If validation fails:
@@ -187,7 +187,7 @@ If an item has no implicit semantic or contextual relationship to another item, 
 
 After implicit-agent writes implicit.json, run:
 ```bash
-python3 validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
+python3 src/validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
 ```
 
 If validation fails:
@@ -263,7 +263,7 @@ reviewer-agent must not use ungrouped_item_ids.
 
 After reviewer-agent writes reviewer.json, run:
 ```bash
-python3 validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
+python3 src/validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
 ```
 
 If validation fails:
@@ -279,7 +279,7 @@ Do not continue with an invalid reviewer.json.
 
 After reviewer-agent output validates successfully, run:
 ```bash
-python3 write_patches.py \
+python3 src/write_patches.py \
   --input <out_dir>/input.json \
   --reviewer <out_dir>/agents/reviewer.json \
   --diff <out_dir>/diff.patch \
@@ -302,7 +302,7 @@ Patch generation is conservative: this version only emits patches for whole diff
 
 After patch generation completes, run:
 ```bash
-python3 write_report.py \
+python3 src/write_report.py \
   --input <out_dir>/input.json \
   --explicit <out_dir>/agents/explicit.json \
   --implicit <out_dir>/agents/implicit.json \
@@ -329,36 +329,36 @@ report.md is compact; report_items.md contains the full item list.
 
 If explicit validation succeeds and the user wants to inspect explicit grouping, run either:
 ```bash
-python3 validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --pretty
+python3 src/validate_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --pretty
 ```
 
 or:
 ```bash
-python3 show_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
+python3 src/show_explicit.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json
 ```
 
 Use the human-readable output to briefly summarize the explicit-agent result.
 
 If implicit validation succeeds and the user wants to inspect implicit grouping, run either:
 ```bash
-python3 validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json --pretty
+python3 src/validate_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json --pretty
 ```
 
 or:
 ```bash
-python3 show_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
+python3 src/show_implicit.py --input <out_dir>/input.json --implicit <out_dir>/agents/implicit.json
 ```
 
 Use the human-readable output to briefly summarize the implicit-agent result.
 
 If reviewer validation succeeds and the user wants to inspect reviewer grouping, run either:
 ```bash
-python3 validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json --pretty
+python3 src/validate_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json --pretty
 ```
 
 or:
 ```bash
-python3 show_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
+python3 src/show_reviewer.py --input <out_dir>/input.json --explicit <out_dir>/agents/explicit.json --implicit <out_dir>/agents/implicit.json --reviewer <out_dir>/agents/reviewer.json
 ```
 
 Use the human-readable output to briefly summarize the reviewer-agent result.
