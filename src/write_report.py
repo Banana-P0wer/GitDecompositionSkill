@@ -353,6 +353,23 @@ def render_report_items(input_data, reviewer_data):
     return "\n".join(lines) + "\n"
 
 
+def group_label(group):
+    group = as_dict(group)
+    group_id = group.get("group_id")
+    summary = group.get("summary") or "No summary"
+    return f"{group_id} ({summary})" if group_id else summary
+
+
+def group_labels_summary(groups, max_groups=5):
+    labels = [group_label(group) for group in groups]
+    if len(labels) <= max_groups:
+        return "; ".join(labels)
+
+    visible_labels = labels[:max_groups]
+    hidden_count = len(labels) - len(visible_labels)
+    return f"{'; '.join(visible_labels)}; ... and {hidden_count} more groups"
+
+
 def render_verdict_explanation(reviewer_data):
     groups = as_list(reviewer_data.get("groups"))
     is_mixed = reviewer_data.get("is_mixed")
@@ -360,13 +377,21 @@ def render_verdict_explanation(reviewer_data):
     if not groups:
         return "Reviewer produced no final groups."
 
-    first_summary = as_dict(groups[0]).get("summary", "No summary")
+    summaries = group_labels_summary(groups)
     if is_mixed:
         return (
             f"Reviewer identified {len(groups)} final groups with confidence "
-            f"{confidence}: {first_summary}"
+            f"{confidence}: {summaries}"
         )
-    return f"Reviewer found one coherent final group with confidence {confidence}: {first_summary}"
+    if len(groups) == 1:
+        return (
+            f"Reviewer found one coherent final group with confidence "
+            f"{confidence}: {summaries}"
+        )
+    return (
+        f"Reviewer marked the commit as not mixed with {len(groups)} final groups "
+        f"and confidence {confidence}: {summaries}"
+    )
 
 
 def render_report(
