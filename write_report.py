@@ -215,6 +215,61 @@ def render_disagreements(reviewer_data, max_items_per_group):
     return lines
 
 
+def yes_no(value):
+    return "yes" if value else "no"
+
+
+def render_patch_files(patch_plan):
+    summary = as_dict(patch_plan.get("summary"))
+    lines = [
+        "## Patch files",
+        f"Strategy: {patch_plan.get('strategy', '')}",
+        f"- Groups: {summary.get('groups', 0)}",
+        f"- Patch files generated: {summary.get('patches_generated', 0)}",
+        f"- Unsafe sections: {summary.get('unsafe_sections', 0)}",
+        f"- All items patchable: {yes_no(summary.get('all_items_patchable'))}",
+    ]
+
+    for group in as_list(patch_plan.get("groups")):
+        group = as_dict(group)
+        group_id = group.get("group_id", "<unknown>")
+        patch_path = group.get("patch_path")
+        lines.extend(
+            [
+                f"### Group {group_id}",
+                f"- Patch: {patch_path if patch_path else 'not generated'}",
+                f"- Verify: {group.get('verify_status', 'not_run')}",
+                "- Files:",
+            ]
+        )
+        files = as_list(group.get("files"))
+        if files:
+            for file_path in files:
+                lines.append(f"  - {file_path}")
+        else:
+            lines.append("  - None")
+
+        unsafe_reasons = as_list(group.get("unsafe_reasons"))
+        if unsafe_reasons:
+            lines.append("- Reason:")
+            for reason in unsafe_reasons:
+                lines.append(f"  - {reason}")
+
+    lines.append("## Unsafe patch sections")
+    unsafe_sections = as_list(patch_plan.get("unsafe_sections"))
+    if unsafe_sections:
+        for section in unsafe_sections:
+            section = as_dict(section)
+            lines.append(
+                f"- {section.get('path', '<unknown>')}: "
+                f"{section.get('reason', 'unknown reason')}"
+            )
+    else:
+        lines.append("No unsafe patch sections.")
+
+    return lines
+
+
 def render_group_items(item_ids, changes, file_events, max_items_per_group):
     if max_items_per_group == 0:
         visible_item_ids = item_ids
@@ -322,6 +377,7 @@ def render_report(
     stats,
     paths,
     max_items_per_group,
+    patch_plan=None,
 ):
     commit = as_dict(input_data.get("commit"))
     author = commit.get("author_name", "")
@@ -360,6 +416,8 @@ def render_report(
     lines.extend(render_agent_summary("Explicit agent summary", "Explicit", explicit_data))
     lines.extend(render_agent_summary("Implicit agent summary", "Implicit", implicit_data))
     lines.extend(render_disagreements(reviewer_data, max_items_per_group))
+    if patch_plan is not None:
+        lines.extend(render_patch_files(patch_plan))
     lines.extend(
         [
             "## Generated artifacts",
@@ -370,8 +428,9 @@ def render_report(
             f"- reviewer.json: {paths['reviewer']}",
             f"- report.md: {paths['report']}",
             f"- report_items.md: {paths['report_items']}",
+            *([f"- patch_plan.json: {paths['patch_plan']}"] if paths.get("patch_plan") else []),
             "## Limitations",
-            "- This prototype does not generate patch files yet.",
+            "- Patch generation uses only whole diff file sections in this prototype.",
             "- This prototype does not modify the analyzed repository.",
             "- The final decomposition is advisory and should be reviewed by a human.",
         ]
@@ -385,6 +444,10 @@ def parse_args(argv):
     parser.add_argument("--explicit", required=True, help="Path to explicit.json")
     parser.add_argument("--implicit", required=True, help="Path to implicit.json")
     parser.add_argument("--reviewer", required=True, help="Path to reviewer.json")
+    parser.add_argument(
+        "--patch-plan",
+        help="Optional path to patches/patch_plan.json for report patch summary",
+    )
     parser.add_argument("--out", required=True, help="Path to report.md")
     parser.add_argument(
         "--items-out",
@@ -404,6 +467,9 @@ def write_report(args):
     explicit_path = pathlib.Path(args.explicit).expanduser()
     implicit_path = pathlib.Path(args.implicit).expanduser()
     reviewer_path = pathlib.Path(args.reviewer).expanduser()
+    patch_plan_path = (
+        pathlib.Path(args.patch_plan).expanduser() if args.patch_plan else None
+    )
     out_path = pathlib.Path(args.out).expanduser()
     items_out_path = (
         pathlib.Path(args.items_out).expanduser()
@@ -421,6 +487,9 @@ def write_report(args):
     explicit_data = read_json(explicit_path)
     implicit_data = read_json(implicit_path)
     reviewer_data = read_json(reviewer_path)
+    patch_plan_data = None
+    if patch_plan_path is not None and patch_plan_path.exists():
+        patch_plan_data = read_json(patch_plan_path)
 
     validate_explicit(input_data, explicit_data)
     validate_implicit(input_data, implicit_data)
@@ -434,6 +503,7 @@ def write_report(args):
         "reviewer": str(reviewer_path),
         "report": str(out_path),
         "report_items": str(items_out_path),
+        "patch_plan": str(patch_plan_path) if patch_plan_data is not None else None,
     }
     report = render_report(
         input_data,
@@ -443,6 +513,7 @@ def write_report(args):
         stats,
         paths,
         max_items_per_group,
+        patch_plan=patch_plan_data,
     )
     report_items = render_report_items(input_data, reviewer_data)
 
