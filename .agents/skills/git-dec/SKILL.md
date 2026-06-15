@@ -64,13 +64,15 @@ Use stdout to find the output directory. It should be:
 <repo>/.git-dec/<resolved_commit_sha>/
 ```
 
-The output directory should contain:
+After the full workflow, the output directory should contain:
 ```text
 input.json
 diff.patch
 agents/explicit.json
 agents/implicit.json
 agents/reviewer.json
+report.md
+report_items.md
 ```
 
 ## Explicit Agent stage
@@ -267,6 +269,32 @@ If validation fails:
 
 Do not continue with an invalid reviewer.json.
 
+## Write report stage
+
+After reviewer-agent output validates successfully, run:
+```bash
+python3 write_report.py \
+  --input <out_dir>/input.json \
+  --explicit <out_dir>/agents/explicit.json \
+  --implicit <out_dir>/agents/implicit.json \
+  --reviewer <out_dir>/agents/reviewer.json \
+  --out <out_dir>/report.md \
+  --items-out <out_dir>/report_items.md \
+  --max-items-per-group 30
+```
+
+Read its JSON stdout.
+
+If report generation fails, stop and report the error.
+
+The output files must be:
+```text
+<out_dir>/report.md
+<out_dir>/report_items.md
+```
+
+report.md is compact; report_items.md contains the full item list.
+
 ## Optional human-readable view
 
 If explicit validation succeeds and the user wants to inspect explicit grouping, run either:
@@ -316,11 +344,11 @@ In the final response to the user, report:
 * created agents/explicit.json path;
 * created agents/implicit.json path;
 * created agents/reviewer.json path;
+* created report.md path;
+* created report_items.md path;
 * explicit validation status;
 * implicit validation status;
 * reviewer validation status;
-* number of explicit groups;
-* number of implicit groups;
 * number of reviewer final groups;
 * number of covered analysis items;
 * is_mixed;
@@ -328,4 +356,6 @@ In the final response to the user, report:
 
 Keep the response short.
 
-Mention clearly that this prototype currently runs the prepare, explicit-agent, implicit-agent, and reviewer-agent stages. It does not yet generate report.md or patch files.
+Mention clearly that this prototype currently runs the prepare, explicit-agent, implicit-agent, reviewer-agent, and report stages. It does not yet generate patch files.
+
+Mention clearly that report.md is compact; report_items.md contains the full item list.
